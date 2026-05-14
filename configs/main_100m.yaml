@@ -21,8 +21,8 @@
 model:
   vocab_size: 129280
   hidden_size: 320
-  num_hidden_layers: 8
-  num_attention_heads: 8
+  num_hidden_layers: 4  # original: 8
+  num_attention_heads: 4  # original: 8
   num_key_value_heads: 1
   moe_intermediate_size: 640
   n_routed_experts: 4
@@ -49,12 +49,12 @@ model:
   tie_word_embeddings: false
   attention_bias: false
   attention_dropout: 0.0
-  compress_ratios: [0, 0, 0, 0, 0, 0, 0, 0, 0]
+  compress_ratios: [0, 0, 0, 0, 0]  # original: [0, 0, 0, 0, 0, 0, 0, 0, 0]  (length = num_hidden_layers + 1)
 
 training:
-  max_seq_length: 2048
-  per_device_train_batch_size: 8
-  gradient_accumulation_steps: 4
+  max_seq_length: 512  # original: 2048
+  per_device_train_batch_size: 1  # original: 8
+  gradient_accumulation_steps: 1  # original: 4
   learning_rate: 6.0e-4
   weight_decay: 0.1
   adam_beta1: 0.9
@@ -63,7 +63,7 @@ training:
   lr_scheduler_type: cosine
   warmup_ratio: 0.03
   bf16: true
-  max_steps: 5000
+  max_steps: 10  # original: 5000
   save_steps: 500
   logging_steps: 10
   gradient_checkpointing: true

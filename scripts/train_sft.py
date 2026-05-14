@@ -13,15 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
 from datasets import load_dataset
-from transformers import PreTrainedTokenizerFast, AutoConfig, AutoModelForCausalLM
+from transformers import PreTrainedTokenizerFast
 from trl import SFTTrainer, SFTConfig
 
 from configuration_deepseek_v4 import DeepseekV4Config
 from modeling_deepseek_v4 import DeepseekV4ForCausalLM
-
-# Register for Auto classes
-AutoConfig.register("deepseek_v4", DeepseekV4Config)
-AutoModelForCausalLM.register(DeepseekV4Config, DeepseekV4ForCausalLM)
 
 
 def main():

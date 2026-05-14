@@ -1,0 +1,10 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local tooling / environment (mise: project-local Python version pin)
+mise.toml
+
+# Training outputs (model weights, optimizer states, logs)
+checkpoints/
