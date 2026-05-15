@@ -1,4 +1,26 @@
-torch>=2.6.0
+# Runtime dependencies for nanowhale.
+#
+# Versions pinned to match the trn2.48xlarge venv at /opt/torch-neuronx/.venv,
+# which is the environment used to run scripts/train_pretrain_neuron.py on
+# Neuron. The CPU/CUDA path (scripts/train_pretrain.py) also runs against
+# these versions on the cloud-desktop side.
+#
+# Install on the trn2 host:
+#   /opt/torch-neuronx/.venv/bin/pip install -r requirements.txt
+# (the venv already ships these but the file is the reproducibility hint).
+#
+# torch-neuronx is published only on the AWS Neuron index. Pulling it in via
+# --extra-index-url here lets a fresh box install everything in one shot.
+--extra-index-url https://pip.repos.neuron.amazonaws.com
+
+torch>=2.11.0
+torch-neuronx>=2.11.3
+neuronx-cc>=2.0.253664
+nki>=0.4.0b4
+
+# Training stack. transformers/trl 5.x are what scripts/train_pretrain.py was
+# validated against on CPU; we keep the same minima so the Neuron and CPU
+# scripts can share the model file.
 transformers>=5.0.0
 datasets>=3.0.0
 accelerate>=1.0.0
