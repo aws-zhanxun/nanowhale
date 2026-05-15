@@ -8,3 +8,9 @@ mise.toml
 
 # Training outputs (model weights, optimizer states, logs)
 checkpoints/
+
+.claude/
+.kiro/
+
+doc/
+logs/
