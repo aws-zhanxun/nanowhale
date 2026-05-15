@@ -340,23 +340,35 @@ class DeepseekV4MoE(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         shape = x.shape
         x_flat = x.view(-1, self.hidden_size)
-        
-        weights, indices = self.gate(x_flat)
-        
-        y = torch.zeros_like(x_flat, dtype=torch.float32)
-        
-        # Route tokens to experts
-        counts = torch.bincount(indices.flatten(), minlength=self.n_routed_experts)
-        for i in range(self.n_routed_experts):
-            if counts[i] == 0:
-                continue
-            idx, top = torch.where(indices == i)
-            expert_out = self.experts[i](x_flat[idx])
-            y[idx] += (weights[idx, top].unsqueeze(-1) * expert_out.float())
-        
+        n_tokens = x_flat.size(0)
+
+        weights, indices = self.gate(x_flat)  # weights/indices: [N, K]
+
+        # Dense MoE: every expert runs on every token. Sparse dispatch
+        # (`x_flat[torch.where(indices == i)]`) makes the per-expert tensor
+        # shapes data-dependent, which forces Neuron to recompile NEFFs every
+        # step (eager mode caches by (op, shape, dtype)). Computing all
+        # experts and zeroing out unused ones via a dense gate mask keeps
+        # every shape static at the cost of n_routed_experts/topk extra
+        # compute — fine for our 4-expert top-2 config.
+        expert_outs = torch.stack(
+            [expert(x_flat) for expert in self.experts], dim=0
+        ).float()  # [E, N, D]
+
+        # (weights, indices) → dense gate matrix [N, E]; scatter_ with topk
+        # indices is safe (no duplicates within a row).
+        dense_weights = torch.zeros(
+            n_tokens, self.n_routed_experts,
+            device=x_flat.device, dtype=weights.dtype,
+        )
+        dense_weights.scatter_(1, indices, weights)
+
+        # [N, E, 1] * [N, E, D] -> sum over E -> [N, D]
+        y = (dense_weights.float().unsqueeze(-1) * expert_outs.transpose(0, 1)).sum(dim=1)
+
         # Add shared expert
         y = y + self.shared_expert(x_flat).float()
-        
+
         return y.to(x.dtype).view(shape)
 
 
