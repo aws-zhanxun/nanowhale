@@ -209,16 +209,21 @@ class DeepseekV4Attention(nn.Module):
         
         new_cache = (kv, kv) if use_cache else None
         
-        # Expand kv for all heads
-        kv_expanded = kv.expand(-1, self.num_heads, -1, -1)
-        
+        # Expand kv for all heads. .contiguous() materializes the stride-0
+        # broadcast — Neuron's autograd refuses to write into a tensor where
+        # multiple output elements alias one input element. We also pass two
+        # independent K/V tensors instead of the same buffer twice for the
+        # same reason.
+        k = kv.expand(-1, self.num_heads, -1, -1).contiguous()
+        v = kv.expand(-1, self.num_heads, -1, -1).contiguous()
+
         # Use PyTorch SDPA (fused kernel, memory-efficient)
-        # q: [B, H, S, D], kv_expanded: [B, H, T, D]
+        # q: [B, H, S, D], k/v: [B, H, T, D]
         # Note: attn_sink bias is small and omitted in SDPA path for speed.
         # It's a learnable per-head scalar — its effect is minimal and the model
         # will learn to compensate through other parameters.
         attn_output = F.scaled_dot_product_attention(
-            q, kv_expanded, kv_expanded,
+            q, k, v,
             attn_mask=attention_mask,
             is_causal=(attention_mask is None),
             scale=self.scaling,
