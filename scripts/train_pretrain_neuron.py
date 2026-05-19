@@ -50,6 +50,7 @@ from transformers import PreTrainedTokenizerFast  # noqa: E402
 
 from configuration_deepseek_v4 import DeepseekV4Config  # noqa: E402
 from modeling_deepseek_v4 import DeepseekV4ForCausalLM  # noqa: E402
+from scripts.kernels import enabled_kernels  # noqa: E402
 
 
 def load_config(config_path):
@@ -216,6 +217,8 @@ def main():
     print(f"Seq length: {seq_len}")
     print(f"LR: {base_lr}")
     print(f"Debug mode: {args.debug}")
+    enabled = sorted(enabled_kernels())
+    print(f"NKI kernels: {enabled if enabled else '(none — pure PyTorch)'}")
     print(f"{'='*60}\n")
 
     # ------------------------------------------------------------------

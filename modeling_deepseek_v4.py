@@ -31,6 +31,16 @@ try:
 except ImportError:
     from configuration_deepseek_v4 import DeepseekV4Config
 
+# NKI kernel wrappers — opt-in via the NKI_KERNELS env var. Falls back to
+# noop stubs when scripts.kernels isn't on sys.path (e.g. when the model
+# is loaded from HF Hub without the training scripts present).
+try:
+    from scripts.kernels import is_enabled as _nki_enabled, nki_cross_entropy
+except ImportError:
+    def _nki_enabled(name: str) -> bool:
+        return False
+    nki_cross_entropy = None
+
 
 # ---------------------------------------------------------------------------
 # Utility functions
@@ -684,18 +694,23 @@ class DeepseekV4ForCausalLM(DeepseekV4PreTrainedModel, GenerationMixin):
             return_dict=False,  # always tuple for compile compatibility
         )
         
-        hidden_states = outputs[0]
-        logits = self.lm_head(hidden_states)
+        hidden_states = outputs[0] # hidden_states.size = [B, S, hidden_size]
+        logits = self.lm_head(hidden_states) # logits.size = [B, S, vocab_size]
         
         loss = None
         if labels is not None:
-            shift_logits = logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            loss = F.cross_entropy(
-                shift_logits.view(-1, self.config.vocab_size),
-                shift_labels.view(-1),
-                ignore_index=-100,
-            )
+            shift_logits = logits[..., :-1, :].contiguous() #shift_logits.size = [B, S-1, vocab_size]
+            shift_labels = labels[..., 1:].contiguous() #shift_labels.size = [B, S-1]
+            flat_logits = shift_logits.view(-1, self.config.vocab_size)  # [B*(S-1), V]
+            flat_labels = shift_labels.view(-1)                          # [B*(S-1)]
+            if _nki_enabled("cross_entropy"):
+                # NKI fused softmax + NLL. No ignore_index support — caller
+                # must guarantee labels has no -100. Our pretraining path
+                # uses labels=input_ids (scripts/train_pretrain_neuron.py),
+                # so no -100s are ever produced.
+                loss = nki_cross_entropy(flat_logits, flat_labels)
+            else:
+                loss = F.cross_entropy(flat_logits, flat_labels, ignore_index=-100)
         
         if not return_dict:
             output = (logits,) + outputs[1:]
